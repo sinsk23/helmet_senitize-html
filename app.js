@@ -1,7 +1,10 @@
 require("dotenv").config;
 const express = require("express");
+const port = 3444;
 const helmet = require("helmet");
 const sanitizeHtml = require("sanitize-html");
+const { sanitizer } = require("./sanitizer");
+const { Posts } = require("./models");
 const app = express();
 const morgan = require("morgan");
 // 기본 설정 기능 사용
@@ -14,20 +17,43 @@ if (process.env.NODE_ENV === "production") {
 } else {
   app.use(morgan("dev"));
 }
-
+app.use(express.json());
 /*Sanitize-HTML*/
-const dirty = `스크립트는 과연 <script>some really tacky HTML</script> 무시될까? h1태그는 <h1>링크</h1> 무시가 될까?`;
+//사용자가 업로드한 HTML을 sanitize-html 함수로 감싸면 허용하지 않는 태그나 스크립트는 제거
+const html = "<script>location.href = 'https://gilbut.co.kr'</script>";
+console.log(sanitizeHtml(html)); // ''
 
-const clean = sanitizeHtml(dirty);
+// const dirty = `스크립트는 과연 <script>some really tacky HTML</script> 무시될까? h1태그는 <h1>링크</h1> 무시가 될까?`;
 
-console.log(clean);
+// const clean = sanitizeHtml(dirty);
+
+// console.log(clean);
 
 // const dirty = `h1태그는 <h1>링크</h1> 무시가 될까?`;
 
 // const sanitizedDescription = sanitizeHtml(dirty, {
-//   allowedTags: ["h1", "a"], // h1 , a 태그 허용
+//   allowedTags: ["a"], // a 태그 허용
 //   allowedAttributes: { a: ["href"] }, // a 태그의 href 속성 허용
 //   allowedFrameHostnames: ["www.youtube.com"], // iframe 허용하되 유튜브 사이트만 허용
 // });
 
 // console.log(sanitizedDescription); // 출력 : h1태그는 <h1>링크</h1> 무시가 될까?
+
+// article/post 로 POST 요청이 오면, 사용자 미들웨어 sanitezer에서 req.content 문자열값을 소독하고 다음 미들웨어로 넘긴다
+app.post("/article/post", sanitizer, async (req, res, next) => {
+  const { content } = req.body;
+  const { title } = req.filtered;
+  // console.log(typeof req.body.title);
+  // console.log(typeof req.filtered);
+
+  const post = await Posts.create({
+    title, // 게시글 제목
+    content, // sanitizer 사용자 미들웨어에서 req.content를 필터링해서 만든 게시글 내용 객체
+  });
+  return res.status(201).json({ post });
+});
+
+app.listen(port, () => {
+  console.log(port, "포트로 서버가 열렸어요!");
+});
+module.exports = app;
